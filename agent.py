@@ -13,6 +13,7 @@ openai_client = OpenAI(
     api_key=os.environ["GROQ_API_KEY"],
     base_url="https://api.groq.com/openai/v1",
 )
+
 SYSTEM_PROMPT = """
 You are a coding assistant whose goal it is to help us solve coding tasks.
 You can perform actions by emitting a single command line in exactly this format, and nothing else on that line:
@@ -179,6 +180,13 @@ def run_coding_agent_loop():
         while True:
             assistant_response = execute_llm_call(conversation)
             tool_invocations = extract_tool_invocations(assistant_response)
+            if tool_invocations:
+                thought = "\n".join(
+                    line for line in assistant_response.splitlines()
+                    if not extract_tool_invocations(line)
+                ).strip()
+                if thought:
+                    print(f"Thought: {thought}")
             if not tool_invocations:
                 print(f"{ASSISTANT_COLOR}Assistant:{RESET_COLOR}: {assistant_response}")
                 conversation.append({
@@ -189,7 +197,7 @@ def run_coding_agent_loop():
             for name, args in tool_invocations:
                 tool = TOOL_REGISTRY[name]
                 resp = ""
-                print(name, args)
+                print(f"Action: {name}, Arguments: {json.dumps(args, ensure_ascii=False)}")
                 if name == "read_file":
                     resp = tool(args.get("filename", "."))
                 elif name == "list_files":
@@ -198,9 +206,11 @@ def run_coding_agent_loop():
                     resp = tool(args.get("path", "."),
                                 args.get("old_str", ""),
                                 args.get("new_str", ""))
+                observation = f"tool_result({json.dumps(resp)})"
+                print(f"Observations: {observation}")
                 conversation.append({
                     "role": "user",
-                    "content": f"tool_result({json.dumps(resp)})"
+                    "content": observation
                 })
 
 
